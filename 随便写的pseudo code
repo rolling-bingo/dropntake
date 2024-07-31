@@ -1,0 +1,53 @@
+Table Cabinet {
+    id          String      @id
+    isEmpty     Boolean
+    lockedBy    String
+}
+
+Table Parcel {
+    collectionId    String  @id
+    cabinetId       String  @foreign key on Cabinet table
+}
+
+Class DropOffPanel {
+    id  String
+    
+    getCabinet() {
+        pickedCabinet = Cabinet.findFirst(isEmpty = true, lockedBy = null)
+        pickedCabinet = Cabinet.update(where: id = pickedCabinetId, data: lockedBy = self.id)
+        return pickedCabinet
+    }
+    
+    dropItem(collectionId) {
+        pickedCabinet ← getCabinet()
+        while pickedCabinet.lockedBy != self.id : pickedCabinet = getCabinet()
+        OpenCabinet()
+        timer ← setTimer(closein: 30 seconds, callback: () {
+            CloseCabinet()
+            Cabinet.update(where: id = pickedCabinetId, data: lockedBy = null, isEmpty = true)
+        })
+        return closeConfirmedCallback: () {
+            Cabinet.update(where: id = pickedCabinetId, data: lockedBy = null, isEmpty = false)
+            Parcel.insert(collectionId, cabinetId = pickedCabinetId)
+            CancelTimer(timer)
+        }
+    }
+}
+
+Class CollectPanel {
+    id  String
+    
+    collect(collectionId) {
+        parcel ← Parcel.find(collectionId)
+        if parcel does not exist: return
+        OpenCabinet()
+        timer ← setTimer(closein: 30 seconds, callback: () {
+            CloseCabinet()
+        })
+        return closeConfirmedCallback: () {
+            Parcel.delete(where: collectionId)
+            Cabinet.update(where: id = parcelCabinetId, data: isEmpty = true)
+            CancelTimer(timer)
+        }
+    }
+}
